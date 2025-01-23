@@ -9,8 +9,10 @@
 #include <QFile>
 #include <QIcon>
 #include "logger.h"
+#include "logviewerdialog.h"
+#include <algorithm>
 
-EditDialog::EditDialog(const QString &barcode, const QString &brand, const QDate &expiryDate, QWidget *parent)
+EditDialog::EditDialog(const QString &barcode, const QString &name, const QString &brand, const QDate &expiryDate, QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle("Ürün Düzenle");
@@ -19,6 +21,9 @@ EditDialog::EditDialog(const QString &barcode, const QString &brand, const QDate
     
     QLabel *barcodeLabel = new QLabel("Barkod:", this);
     barcodeEdit = new QLineEdit(barcode, this);
+    
+    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
+    nameEdit = new QLineEdit(name, this);
     
     QLabel *brandLabel = new QLabel("Marka:", this);
     brandEdit = new QLineEdit(brand, this);
@@ -36,6 +41,8 @@ EditDialog::EditDialog(const QString &barcode, const QString &brand, const QDate
     
     layout->addWidget(barcodeLabel);
     layout->addWidget(barcodeEdit);
+    layout->addWidget(nameLabel);
+    layout->addWidget(nameEdit);
     layout->addWidget(brandLabel);
     layout->addWidget(brandEdit);
     layout->addWidget(expiryLabel);
@@ -78,45 +85,65 @@ BulkEditDialog::BulkEditDialog(std::vector<Product> &products, QWidget *parent)
         productTable->setItem(i, 3, dateItem);
     }
     
-    // Düzenleme kontrolleri
-    QGroupBox *editGroup = new QGroupBox("Toplu Düzenleme Seçenekleri", this);
-    QVBoxLayout *editLayout = new QVBoxLayout(editGroup);
+    // Düzenleme seçenekleri
+    QGroupBox *editOptionsGroup = new QGroupBox("Düzenleme Seçenekleri", this);
+    QVBoxLayout *editOptionsLayout = new QVBoxLayout(editOptionsGroup);
     
-    updateExpiryCheckBox = new QCheckBox("Son Kullanma Tarihini Güncelle", this);
-    newExpiryDateEdit = new QDateEdit(QDate::currentDate(), this);
-    newExpiryDateEdit->setCalendarPopup(true);
-    newExpiryDateEdit->setEnabled(false);
-    
-    updateBrandCheckBox = new QCheckBox("Markayı Güncelle", this);
-    newBrandEdit = new QLineEdit(this);
-    newBrandEdit->setEnabled(false);
-    
-    editLayout->addWidget(updateExpiryCheckBox);
-    editLayout->addWidget(newExpiryDateEdit);
-    editLayout->addWidget(updateBrandCheckBox);
-    editLayout->addWidget(newBrandEdit);
+    QLabel *expiryLabel = new QLabel("Yeni Son Kullanma Tarihi:", this);
+    expiryDateEdit = new QDateEdit(QDate::currentDate(), this);
+    expiryDateEdit->setCalendarPopup(true);
     
     // Butonlar
-    QHBoxLayout *buttonLayout = new QHBoxLayout;
-    applyButton = new QPushButton("Uygula", this);
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *selectAllButton = new QPushButton("Tümünü Seç", this);
+    QPushButton *deselectAllButton = new QPushButton("Seçimi Kaldır", this);
+    applyButton = new QPushButton("Değişiklikleri Uygula", this);
     QPushButton *cancelButton = new QPushButton("İptal", this);
     
+    buttonLayout->addWidget(selectAllButton);
+    buttonLayout->addWidget(deselectAllButton);
+    buttonLayout->addStretch();
     buttonLayout->addWidget(applyButton);
     buttonLayout->addWidget(cancelButton);
     
-    // Ana layout'a ekle
+    editOptionsLayout->addWidget(expiryLabel);
+    editOptionsLayout->addWidget(expiryDateEdit);
+    
     layout->addWidget(productTable);
-    layout->addWidget(editGroup);
+    layout->addWidget(editOptionsGroup);
     layout->addLayout(buttonLayout);
     
     // Bağlantılar
-    connect(updateExpiryCheckBox, &QCheckBox::toggled, newExpiryDateEdit, &QDateEdit::setEnabled);
-    connect(updateBrandCheckBox, &QCheckBox::toggled, newBrandEdit, &QLineEdit::setEnabled);
+    connect(selectAllButton, &QPushButton::clicked, this, &BulkEditDialog::selectAll);
+    connect(deselectAllButton, &QPushButton::clicked, this, &BulkEditDialog::deselectAll);
     connect(applyButton, &QPushButton::clicked, this, &BulkEditDialog::applyChanges);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-    connect(productTable, &QTableWidget::itemChanged, this, &BulkEditDialog::updateSelectionCount);
+    
+    // Özel seçim davranışı
+    connect(productTable, &QTableWidget::itemClicked, this, [this](QTableWidgetItem *item) {
+        if (item->column() == 0) { // Checkbox sütunu için
+            bool isChecked = item->checkState() == Qt::Checked;
+            item->setCheckState(isChecked ? Qt::Unchecked : Qt::Checked);
+            updateSelectionCount();
+        }
+    });
     
     productTable->resizeColumnsToContents();
+    updateSelectionCount();
+}
+
+void BulkEditDialog::selectAll()
+{
+    for (int i = 0; i < productTable->rowCount(); ++i) {
+        productTable->item(i, 0)->setCheckState(Qt::Checked);
+    }
+}
+
+void BulkEditDialog::deselectAll()
+{
+    for (int i = 0; i < productTable->rowCount(); ++i) {
+        productTable->item(i, 0)->setCheckState(Qt::Unchecked);
+    }
 }
 
 void BulkEditDialog::updateSelectionCount()
@@ -127,35 +154,25 @@ void BulkEditDialog::updateSelectionCount()
             selectedCount++;
         }
     }
-    applyButton->setText(QString("Uygula (%1 ürün seçili)").arg(selectedCount));
+    applyButton->setText(QString("Değişiklikleri Uygula (%1)").arg(selectedCount));
+    applyButton->setEnabled(selectedCount > 0);
 }
 
 void BulkEditDialog::applyChanges()
 {
-    bool madeChanges = false;
+    QDate newExpiryDate = expiryDateEdit->date();
     
     for (int i = 0; i < productTable->rowCount(); ++i) {
         if (productTable->item(i, 0)->checkState() == Qt::Checked) {
-            if (updateExpiryCheckBox->isChecked()) {
-                products[i].setExpiryDate(newExpiryDateEdit->date());
-                madeChanges = true;
-            }
-            if (updateBrandCheckBox->isChecked() && !newBrandEdit->text().isEmpty()) {
-                products[i].setBrand(newBrandEdit->text());
-                madeChanges = true;
-            }
+            products[i].setExpiryDate(newExpiryDate);
         }
     }
     
-    if (madeChanges) {
-        accept();
-    } else {
-        QMessageBox::warning(this, "Uyarı", "Hiçbir değişiklik yapılmadı.");
-    }
+    accept();
 }
 
 // Bulk Delete Dialog Implementation
-BulkDeleteDialog::BulkDeleteDialog(std::vector<Product> &products, QWidget *parent)
+BulkDeleteDialog::BulkDeleteDialog(const std::vector<Product> &products, QWidget *parent)
     : QDialog(parent), products(products)
 {
     setWindowTitle("Toplu Silme");
@@ -192,8 +209,8 @@ BulkDeleteDialog::BulkDeleteDialog(std::vector<Product> &products, QWidget *pare
     // Butonlar
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     
-    selectAllButton = new QPushButton("Tümünü Seç", this);
-    deselectAllButton = new QPushButton("Seçimi Kaldır", this);
+    QPushButton *selectAllButton = new QPushButton("Tümünü Seç", this);
+    QPushButton *deselectAllButton = new QPushButton("Seçimi Kaldır", this);
     deleteButton = new QPushButton("Seçilenleri Sil", this);
     QPushButton *cancelButton = new QPushButton("İptal", this);
     
@@ -254,14 +271,24 @@ std::vector<size_t> BulkDeleteDialog::getSelectedIndexes() const
     return selectedIndexes;
 }
 
+// Özel sıralama sınıfı
+class CustomTableWidgetItem : public QTableWidgetItem {
+public:
+    CustomTableWidgetItem(const QString &text) : QTableWidgetItem(text) {}
+    
+    bool operator<(const QTableWidgetItem &other) const override {
+        return text().toInt() < other.text().toInt();
+    }
+};
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    Logger::instance().log(Logger::INFO, "Uygulama başlatılıyor...");
+    Logger::instance().log(Logger::INFO, "Uygulama başlatıldı");
     setupUI();
-    setupStyle();
+    setupConnections();
     loadProducts();
-    Logger::instance().log(Logger::INFO, "Uygulama başarıyla başlatıldı.");
+    setupStyle();
 }
 
 MainWindow::~MainWindow()
@@ -310,6 +337,9 @@ void MainWindow::setupUI()
     QLabel *barcodeLabel = new QLabel("Barkod:", this);
     barcodeEdit = new QLineEdit(this);
     
+    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
+    nameEdit = new QLineEdit(this);
+    
     QLabel *brandLabel = new QLabel("Marka:", this);
     brandEdit = new QLineEdit(this);
     
@@ -322,19 +352,54 @@ void MainWindow::setupUI()
     
     inputLayout->addWidget(barcodeLabel, 0, 0);
     inputLayout->addWidget(barcodeEdit, 0, 1);
-    inputLayout->addWidget(brandLabel, 0, 2);
-    inputLayout->addWidget(brandEdit, 0, 3);
-    inputLayout->addWidget(expiryLabel, 1, 0);
-    inputLayout->addWidget(expiryDateEdit, 1, 1);
-    inputLayout->addWidget(addButton, 1, 3);
+    inputLayout->addWidget(nameLabel, 0, 2);
+    inputLayout->addWidget(nameEdit, 0, 3);
+    inputLayout->addWidget(brandLabel, 1, 0);
+    inputLayout->addWidget(brandEdit, 1, 1);
+    inputLayout->addWidget(expiryLabel, 1, 2);
+    inputLayout->addWidget(expiryDateEdit, 1, 3);
+    inputLayout->addWidget(addButton, 2, 3);
 
     // Table
     productTable = new QTableWidget(this);
-    productTable->setColumnCount(4);
-    productTable->setHorizontalHeaderLabels({"Barkod", "Marka", "Son Kullanma Tarihi", "Kalan Gün"});
+    productTable->setColumnCount(5);
+    productTable->setHorizontalHeaderLabels({"Barkod", "Ürün Adı", "Marka", "Son Kullanma Tarihi", "Kalan Gün"});
     productTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     productTable->setSelectionMode(QAbstractItemView::SingleSelection);
     productTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    
+    // Tablo başlıklarını düzenle
+    QHeaderView *horizontalHeader = productTable->horizontalHeader();
+    horizontalHeader->setSectionResizeMode(QHeaderView::Interactive);
+    horizontalHeader->setStretchLastSection(true);
+    horizontalHeader->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    horizontalHeader->setSectionsMovable(false);
+    
+    // Minimum sütun genişliklerini ayarla
+    productTable->setColumnWidth(0, 120); // Barkod
+    productTable->setColumnWidth(1, 150); // Ürün Adı
+    productTable->setColumnWidth(2, 120); // Marka
+    productTable->setColumnWidth(3, 150); // Son Kullanma Tarihi
+    productTable->setColumnWidth(4, 100); // Kalan Gün
+    
+    // Sıralama özelliğini aktif et
+    productTable->setSortingEnabled(true);
+    horizontalHeader->setSectionsClickable(true);
+    horizontalHeader->setSortIndicatorShown(true);
+    
+    // Seçim davranışını özelleştir
+    connect(productTable, &QTableWidget::itemClicked, this, [this](QTableWidgetItem *item) {
+        static int lastClickedRow = -1;
+        int currentRow = item->row();
+        
+        if (currentRow == lastClickedRow) {
+            productTable->clearSelection();
+            lastClickedRow = -1;
+        } else {
+            lastClickedRow = currentRow;
+            productTable->selectRow(currentRow);
+        }
+    });
 
     // Buttons
     QHBoxLayout *buttonLayout = new QHBoxLayout();
@@ -342,25 +407,38 @@ void MainWindow::setupUI()
     deleteButton = new QPushButton("Sil", this);
     bulkEditButton = new QPushButton("Toplu Düzenle", this);
     bulkDeleteButton = new QPushButton("Toplu Sil", this);
+    viewLogsButton = new QPushButton("Logları Görüntüle", this);
     
     buttonLayout->addWidget(editButton);
     buttonLayout->addWidget(deleteButton);
     buttonLayout->addWidget(bulkEditButton);
     buttonLayout->addWidget(bulkDeleteButton);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(viewLogsButton);
 
     mainLayout->addLayout(inputLayout);
     mainLayout->addWidget(productTable);
     mainLayout->addLayout(buttonLayout);
 
-    // Connect signals
+    setWindowTitle("Barkod Takip Sistemi");
+    resize(1200, 600);
+}
+
+void MainWindow::setupConnections()
+{
     connect(addButton, &QPushButton::clicked, this, &MainWindow::addProduct);
-    connect(deleteButton, &QPushButton::clicked, this, &MainWindow::deleteSelectedProduct);
     connect(editButton, &QPushButton::clicked, this, &MainWindow::editSelectedProduct);
+    connect(deleteButton, &QPushButton::clicked, this, &MainWindow::deleteSelectedProduct);
     connect(bulkEditButton, &QPushButton::clicked, this, &MainWindow::showBulkEditDialog);
     connect(bulkDeleteButton, &QPushButton::clicked, this, &MainWindow::showBulkDeleteDialog);
-
-    setWindowTitle("Barkod Takip Sistemi");
-    resize(1000, 600);
+    connect(viewLogsButton, &QPushButton::clicked, this, &MainWindow::showLogViewerDialog);
+    
+    // Enter tuşuna basıldığında ürün ekleme
+    connect(barcodeEdit, &QLineEdit::returnPressed, this, &MainWindow::addProduct);
+    connect(brandEdit, &QLineEdit::returnPressed, this, &MainWindow::addProduct);
+    
+    // Tablo çift tıklama ile düzenleme
+    connect(productTable, &QTableWidget::doubleClicked, this, &MainWindow::editSelectedProduct);
 }
 
 QString MainWindow::getDataFilePath() const
@@ -426,6 +504,7 @@ void MainWindow::loadProducts()
 void MainWindow::addProduct()
 {
     QString barcode = barcodeEdit->text().trimmed();
+    QString name = nameEdit->text().trimmed();
     QString brand = brandEdit->text().trimmed();
     
     if (barcode.isEmpty()) {
@@ -435,10 +514,11 @@ void MainWindow::addProduct()
     }
 
     QDate expiryDate = expiryDateEdit->date();
-    products.emplace_back(barcode, brand, expiryDate);
+    products.emplace_back(barcode, name, brand, expiryDate);
     
-    Logger::instance().log(Logger::INFO, QString("Yeni ürün eklendi: Barkod=%1, Marka=%2, SKT=%3")
+    Logger::instance().log(Logger::INFO, QString("Yeni ürün eklendi: Barkod=%1, Ad=%2, Marka=%3, SKT=%4")
         .arg(barcode)
+        .arg(name)
         .arg(brand)
         .arg(expiryDate.toString("dd.MM.yyyy")));
     
@@ -446,6 +526,7 @@ void MainWindow::addProduct()
     saveProducts();
     
     barcodeEdit->clear();
+    nameEdit->clear();
     brandEdit->clear();
     barcodeEdit->setFocus();
 }
@@ -453,28 +534,43 @@ void MainWindow::addProduct()
 void MainWindow::editSelectedProduct()
 {
     int row = productTable->currentRow();
-    if (row >= 0 && row < products.size()) {
-        EditDialog dialog(products[row].getBarcode(), products[row].getBrand(), 
-                        products[row].getExpiryDate(), this);
-        if (dialog.exec() == QDialog::Accepted) {
-            QString oldBarcode = products[row].getBarcode();
-            QString oldBrand = products[row].getBrand();
-            QDate oldDate = products[row].getExpiryDate();
+    if (row >= 0) {
+        QString selectedBarcode = productTable->item(row, 0)->text();
+        
+        // Seçilen barkoda sahip ürünü bul
+        auto it = std::find_if(products.begin(), products.end(),
+            [&selectedBarcode](const Product& p) { return p.getBarcode() == selectedBarcode; });
             
-            products[row].setBarcode(dialog.getBarcode());
-            products[row].setBrand(dialog.getBrand());
-            products[row].setExpiryDate(dialog.getExpiryDate());
+        if (it != products.end()) {
+            size_t index = std::distance(products.begin(), it);
             
-            Logger::instance().log(Logger::INFO, QString("Ürün düzenlendi: Barkod: %1->%2, Marka: %3->%4, SKT: %5->%6")
-                .arg(oldBarcode)
-                .arg(dialog.getBarcode())
-                .arg(oldBrand)
-                .arg(dialog.getBrand())
-                .arg(oldDate.toString("dd.MM.yyyy"))
-                .arg(dialog.getExpiryDate().toString("dd.MM.yyyy")));
-            
-            updateTable();
-            saveProducts();
+            EditDialog dialog(products[index].getBarcode(), products[index].getName(), 
+                            products[index].getBrand(), products[index].getExpiryDate(), this);
+                            
+            if (dialog.exec() == QDialog::Accepted) {
+                QString oldBarcode = products[index].getBarcode();
+                QString oldName = products[index].getName();
+                QString oldBrand = products[index].getBrand();
+                QDate oldDate = products[index].getExpiryDate();
+                
+                products[index].setBarcode(dialog.getBarcode());
+                products[index].setName(dialog.getName());
+                products[index].setBrand(dialog.getBrand());
+                products[index].setExpiryDate(dialog.getExpiryDate());
+                
+                Logger::instance().log(Logger::INFO, QString("Ürün düzenlendi: Barkod: %1->%2, Ad: %3->%4, Marka: %5->%6, SKT: %7->%8")
+                    .arg(oldBarcode)
+                    .arg(dialog.getBarcode())
+                    .arg(oldName)
+                    .arg(dialog.getName())
+                    .arg(oldBrand)
+                    .arg(dialog.getBrand())
+                    .arg(oldDate.toString("dd.MM.yyyy"))
+                    .arg(dialog.getExpiryDate().toString("dd.MM.yyyy")));
+                
+                updateTable();
+                saveProducts();
+            }
         }
     } else {
         Logger::instance().log(Logger::WARNING, "Ürün seçilmeden düzenleme denemesi.");
@@ -485,20 +581,30 @@ void MainWindow::editSelectedProduct()
 void MainWindow::deleteSelectedProduct()
 {
     int row = productTable->currentRow();
-    if (row >= 0 && row < products.size()) {
-        QString barcode = products[row].getBarcode();
-        QString brand = products[row].getBrand();
-        QDate expiryDate = products[row].getExpiryDate();
+    if (row >= 0) {
+        QString selectedBarcode = productTable->item(row, 0)->text();
         
-        products.erase(products.begin() + row);
-        
-        Logger::instance().log(Logger::INFO, QString("Ürün silindi: Barkod=%1, Marka=%2, SKT=%3")
-            .arg(barcode)
-            .arg(brand)
-            .arg(expiryDate.toString("dd.MM.yyyy")));
-        
-        updateTable();
-        saveProducts();
+        // Seçilen barkoda sahip ürünü bul
+        auto it = std::find_if(products.begin(), products.end(),
+            [&selectedBarcode](const Product& p) { return p.getBarcode() == selectedBarcode; });
+            
+        if (it != products.end()) {
+            QString barcode = it->getBarcode();
+            QString name = it->getName();
+            QString brand = it->getBrand();
+            QDate expiryDate = it->getExpiryDate();
+            
+            products.erase(it);
+            
+            Logger::instance().log(Logger::INFO, QString("Ürün silindi: Barkod=%1, Ad=%2, Marka=%3, SKT=%4")
+                .arg(barcode)
+                .arg(name)
+                .arg(brand)
+                .arg(expiryDate.toString("dd.MM.yyyy")));
+            
+            updateTable();
+            saveProducts();
+        }
     }
 }
 
@@ -552,32 +658,51 @@ void MainWindow::showBulkDeleteDialog()
     }
 }
 
+void MainWindow::showLogViewerDialog()
+{
+    LogViewerDialog dialog(this);
+    dialog.exec();
+}
+
 void MainWindow::updateTable()
 {
+    // Mevcut sıralama durumunu kaydet
+    int sortColumn = productTable->horizontalHeader()->sortIndicatorSection();
+    Qt::SortOrder sortOrder = productTable->horizontalHeader()->sortIndicatorOrder();
+    
+    productTable->setSortingEnabled(false);
     productTable->setRowCount(products.size());
     
     for (size_t i = 0; i < products.size(); ++i) {
         QTableWidgetItem *barcodeItem = new QTableWidgetItem(products[i].getBarcode());
+        QTableWidgetItem *nameItem = new QTableWidgetItem(products[i].getName());
         QTableWidgetItem *brandItem = new QTableWidgetItem(products[i].getBrand());
-        QTableWidgetItem *dateItem = new QTableWidgetItem(products[i].getExpiryDate().toString("dd.MM.yyyy"));
         
+        // Tarih sıralaması için özel veri rolü
+        QTableWidgetItem *dateItem = new QTableWidgetItem;
+        dateItem->setText(products[i].getExpiryDate().toString("dd.MM.yyyy"));
+        
+        // Kalan gün sıralaması için özel sıralama sınıfını kullan
         int daysUntilExpiry = products[i].getDaysUntilExpiry();
-        QTableWidgetItem *daysItem = new QTableWidgetItem(QString::number(daysUntilExpiry));
+        CustomTableWidgetItem *daysItem = new CustomTableWidgetItem(QString::number(daysUntilExpiry));
         
         QColor color = getExpiryColor(daysUntilExpiry);
         if (color.isValid()) {
             barcodeItem->setBackground(color);
+            nameItem->setBackground(color);
             brandItem->setBackground(color);
             dateItem->setBackground(color);
             daysItem->setBackground(color);
             
             if (daysUntilExpiry < 10) {
                 barcodeItem->setForeground(Qt::white);
+                nameItem->setForeground(Qt::white);
                 brandItem->setForeground(Qt::white);
                 dateItem->setForeground(Qt::white);
                 daysItem->setForeground(Qt::white);
             } else if (daysUntilExpiry < 30) {
                 barcodeItem->setForeground(Qt::black);
+                nameItem->setForeground(Qt::black);
                 brandItem->setForeground(Qt::black);
                 dateItem->setForeground(Qt::black);
                 daysItem->setForeground(Qt::black);
@@ -585,10 +710,17 @@ void MainWindow::updateTable()
         }
         
         productTable->setItem(i, 0, barcodeItem);
-        productTable->setItem(i, 1, brandItem);
-        productTable->setItem(i, 2, dateItem);
-        productTable->setItem(i, 3, daysItem);
+        productTable->setItem(i, 1, nameItem);
+        productTable->setItem(i, 2, brandItem);
+        productTable->setItem(i, 3, dateItem);
+        productTable->setItem(i, 4, daysItem);
     }
 
     productTable->resizeColumnsToContents();
+    productTable->setSortingEnabled(true);
+    
+    // Eğer daha önce bir sıralama yapılmışsa, aynı sıralamayı uygula
+    if (sortColumn >= 0) {
+        productTable->sortByColumn(sortColumn, sortOrder);
+    }
 } 

@@ -32,6 +32,7 @@ set(SOURCES
     src/mainwindow.cpp
     src/product.cpp
     src/logger.cpp
+    src/logviewerdialog.cpp
 )
 
 # Header files
@@ -39,6 +40,7 @@ set(HEADERS
     include/mainwindow.h
     include/product.h
     include/logger.h
+    include/logviewerdialog.h
 )
 
 # Resource files

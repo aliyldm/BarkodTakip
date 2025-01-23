@@ -1,5 +1,4 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QMainWindow>
 #include <QLineEdit>
@@ -8,6 +7,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QDialog>
 #include <QJsonDocument>
@@ -23,13 +23,15 @@ class EditDialog : public QDialog
 {
     Q_OBJECT
 public:
-    EditDialog(const QString &barcode, const QString &brand, const QDate &expiryDate, QWidget *parent = nullptr);
+    EditDialog(const QString &barcode, const QString &name, const QString &brand, const QDate &expiryDate, QWidget *parent = nullptr);
     QString getBarcode() const { return barcodeEdit->text(); }
+    QString getName() const { return nameEdit->text(); }
     QString getBrand() const { return brandEdit->text(); }
     QDate getExpiryDate() const { return expiryDateEdit->date(); }
 
 private:
     QLineEdit *barcodeEdit;
+    QLineEdit *nameEdit;
     QLineEdit *brandEdit;
     QDateEdit *expiryDateEdit;
 };
@@ -41,17 +43,34 @@ public:
     BulkEditDialog(std::vector<Product> &products, QWidget *parent = nullptr);
 
 private slots:
-    void applyChanges();
+    void selectAll();
+    void deselectAll();
     void updateSelectionCount();
+    void applyChanges();
 
 private:
     std::vector<Product> &products;
     QTableWidget *productTable;
-    QDateEdit *newExpiryDateEdit;
-    QLineEdit *newBrandEdit;
-    QCheckBox *updateExpiryCheckBox;
-    QCheckBox *updateBrandCheckBox;
+    QDateEdit *expiryDateEdit;
     QPushButton *applyButton;
+};
+
+class BulkDeleteDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    BulkDeleteDialog(const std::vector<Product> &products, QWidget *parent = nullptr);
+    std::vector<size_t> getSelectedIndexes() const;
+
+private slots:
+    void selectAll();
+    void deselectAll();
+    void updateSelectionCount();
+
+private:
+    const std::vector<Product> &products;
+    QTableWidget *productTable;
+    QPushButton *deleteButton;
 };
 
 class MainWindow : public QMainWindow
@@ -64,51 +83,32 @@ public:
 
 private slots:
     void addProduct();
-    void deleteSelectedProduct();
     void editSelectedProduct();
+    void deleteSelectedProduct();
     void showBulkEditDialog();
     void showBulkDeleteDialog();
+    void showLogViewerDialog();
 
 private:
     void setupUI();
-    void updateTable();
     void setupStyle();
-    QColor getExpiryColor(int daysUntilExpiry) const;
-    
+    void setupConnections();
+    void updateTable();
     void saveProducts();
     void loadProducts();
     QString getDataFilePath() const;
+    QColor getExpiryColor(int daysUntilExpiry) const;
 
     QLineEdit *barcodeEdit;
+    QLineEdit *nameEdit;
     QLineEdit *brandEdit;
     QDateEdit *expiryDateEdit;
     QPushButton *addButton;
-    QPushButton *deleteButton;
     QPushButton *editButton;
+    QPushButton *deleteButton;
     QPushButton *bulkEditButton;
     QPushButton *bulkDeleteButton;
+    QPushButton *viewLogsButton;
     QTableWidget *productTable;
     std::vector<Product> products;
-};
-
-class BulkDeleteDialog : public QDialog
-{
-    Q_OBJECT
-public:
-    BulkDeleteDialog(std::vector<Product> &products, QWidget *parent = nullptr);
-    std::vector<size_t> getSelectedIndexes() const;
-
-private slots:
-    void updateSelectionCount();
-    void selectAll();
-    void deselectAll();
-
-private:
-    std::vector<Product> &products;
-    QTableWidget *productTable;
-    QPushButton *deleteButton;
-    QPushButton *selectAllButton;
-    QPushButton *deselectAllButton;
-};
-
-#endif // MAINWINDOW_H 
+}; 

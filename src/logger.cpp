@@ -1,9 +1,12 @@
 #include "logger.h"
 #include <QStandardPaths>
+#include <QCoreApplication>
+#include <QDebug>
 
 Logger::Logger() {
-    // Varsayılan log dizinini ayarla
+    // Log dizinini AppData klasörü altında oluştur
     logDirectory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
+    qDebug() << "Log dizini:" << logDirectory;
     ensureLogDirectoryExists();
 }
 
@@ -15,6 +18,8 @@ Logger& Logger::instance() {
 void Logger::log(LogLevel level, const QString& message) {
     QString logFileName = getCurrentLogFileName();
     QFile logFile(logFileName);
+
+    qDebug() << "Log dosyası yazılıyor:" << logFileName;
 
     // Log dosyasının boyutunu kontrol et
     if (logFile.exists() && logFile.size() > MAX_LOG_SIZE) {
@@ -34,7 +39,9 @@ void Logger::log(LogLevel level, const QString& message) {
         logFile.close();
 
         // Konsola da yazdır (debug için)
-        qDebug().noquote() << logEntry.trimmed();
+        qDebug().noquote() << "Log yazıldı:" << logEntry.trimmed();
+    } else {
+        qDebug() << "Log dosyası açılamadı:" << logFile.errorString();
     }
 }
 
@@ -63,7 +70,11 @@ QString Logger::getLevelString(LogLevel level) const {
 void Logger::ensureLogDirectoryExists() {
     QDir dir(logDirectory);
     if (!dir.exists()) {
-        dir.mkpath(".");
+        bool created = dir.mkpath(".");
+        qDebug() << "Log dizini oluşturuldu:" << created;
+        if (!created) {
+            qDebug() << "Log dizini oluşturulamadı!";
+        }
     }
 }
 
