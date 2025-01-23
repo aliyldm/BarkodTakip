@@ -15,6 +15,20 @@ endif()
 # Windows specific settings
 if(WIN32)
     set(CMAKE_WIN32_EXECUTABLE ON)
+    
+    # Windows manifest
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/app.manifest.in
+        ${CMAKE_BINARY_DIR}/app.manifest
+        @ONLY
+    )
+    
+    # RC dosyası oluştur
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/app.rc.in
+        ${CMAKE_BINARY_DIR}/app.rc
+        @ONLY
+    )
 endif()
 
 # Print Qt version information for debugging
@@ -51,11 +65,20 @@ set(RESOURCES
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-add_executable(barcode_tracker
-    ${SOURCES}
-    ${HEADERS}
-    ${RESOURCES}
-)
+if(WIN32)
+    add_executable(barcode_tracker WIN32
+        ${SOURCES}
+        ${HEADERS}
+        ${RESOURCES}
+        ${CMAKE_BINARY_DIR}/app.rc
+    )
+else()
+    add_executable(barcode_tracker
+        ${SOURCES}
+        ${HEADERS}
+        ${RESOURCES}
+    )
+endif()
 
 target_link_libraries(barcode_tracker PRIVATE
     Qt6::Widgets
