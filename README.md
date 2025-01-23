@@ -25,8 +25,8 @@
 
 1. Repository'yi klonlayın:
 ```bash
-git clone https://github.com/KULLANICIADI/barkod-takip.git
-cd barkod-takip
+git clone https://github.com/aliyldm/BarkodTakip.git
+cd BarkodTakip
 ```
 
 2. Build klasörü oluşturun:
@@ -47,7 +47,7 @@ cmake --build .
 
 ### Son Kullanıcı için:
 
-1. En son sürümü [Releases](https://github.com/KULLANICIADI/barkod-takip/releases) sayfasından indirin
+1. En son sürümü [Releases](https://github.com/aliyldm/BarkodTakip/releases) sayfasından indirin
 2. BarkodTakip.zip dosyasını açın
 3. barcode_tracker.exe dosyasını çalıştırın
 
