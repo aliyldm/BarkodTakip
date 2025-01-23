@@ -26,12 +26,33 @@ message(STATUS "Looking for Qt6...")
 find_package(Qt6 REQUIRED COMPONENTS Widgets Core)
 message(STATUS "Found Qt6 version: ${Qt6_VERSION}")
 
+# Source files
+set(SOURCES
+    src/main.cpp
+    src/mainwindow.cpp
+    src/product.cpp
+    src/logger.cpp
+)
+
+# Header files
+set(HEADERS
+    include/mainwindow.h
+    include/product.h
+    include/logger.h
+)
+
+# Resource files
+set(RESOURCES
+    resources/resources.qrc
+)
+
+# Include directories
+include_directories(${CMAKE_SOURCE_DIR}/include)
+
 add_executable(barcode_tracker
-    main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    product.h
-    product.cpp
+    ${SOURCES}
+    ${HEADERS}
+    ${RESOURCES}
 )
 
 target_link_libraries(barcode_tracker PRIVATE
@@ -39,9 +60,20 @@ target_link_libraries(barcode_tracker PRIVATE
     Qt6::Core
 )
 
+# Copy resource files to build directory
+add_custom_command(TARGET barcode_tracker POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/resources
+    ${CMAKE_CURRENT_BINARY_DIR}/resources
+)
+
 # Installation settings
 install(TARGETS barcode_tracker
     RUNTIME DESTINATION bin
+)
+
+install(DIRECTORY resources
+    DESTINATION bin
 )
 
 # Windows deployment
@@ -54,6 +86,7 @@ if(WIN32)
         COMMAND "${CMAKE_COMMAND}" -E remove_directory "${CMAKE_CURRENT_BINARY_DIR}/windeployqt"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/windeployqt"
         COMMAND "${CMAKE_COMMAND}" -E copy $<TARGET_FILE:barcode_tracker> "${CMAKE_CURRENT_BINARY_DIR}/windeployqt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_BINARY_DIR}/resources" "${CMAKE_CURRENT_BINARY_DIR}/windeployqt/resources"
         COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations --no-system-d3d-compiler --no-opengl-sw "${CMAKE_CURRENT_BINARY_DIR}/windeployqt/$<TARGET_FILE_NAME:barcode_tracker>"
     )
 

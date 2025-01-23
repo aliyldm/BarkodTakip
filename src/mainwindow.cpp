@@ -6,6 +6,9 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QHeaderView>
+#include <QFile>
+#include <QIcon>
+#include "logger.h"
 
 EditDialog::EditDialog(const QString &barcode, const QString &brand, const QDate &expiryDate, QWidget *parent)
     : QDialog(parent)
@@ -254,14 +257,17 @@ std::vector<size_t> BulkDeleteDialog::getSelectedIndexes() const
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    Logger::instance().log(Logger::INFO, "Uygulama başlatılıyor...");
     setupUI();
     setupStyle();
-    loadProducts(); // Uygulama başladığında ürünleri yükle
+    loadProducts();
+    Logger::instance().log(Logger::INFO, "Uygulama başarıyla başlatıldı.");
 }
 
 MainWindow::~MainWindow()
 {
-    saveProducts(); // Uygulama kapanırken ürünleri kaydet
+    Logger::instance().log(Logger::INFO, "Uygulama kapatılıyor...");
+    saveProducts();
 }
 
 void MainWindow::setupStyle()
@@ -269,23 +275,16 @@ void MainWindow::setupStyle()
     // Set modern style
     qApp->setStyle(QStyleFactory::create("Fusion"));
     
-    // Set color palette
-    QPalette palette;
-    palette.setColor(QPalette::Window, QColor(53, 53, 53));
-    palette.setColor(QPalette::WindowText, Qt::white);
-    palette.setColor(QPalette::Base, QColor(25, 25, 25));
-    palette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    palette.setColor(QPalette::ToolTipBase, Qt::white);
-    palette.setColor(QPalette::ToolTipText, Qt::white);
-    palette.setColor(QPalette::Text, Qt::white);
-    palette.setColor(QPalette::Button, QColor(53, 53, 53));
-    palette.setColor(QPalette::ButtonText, Qt::white);
-    palette.setColor(QPalette::BrightText, Qt::red);
-    palette.setColor(QPalette::Link, QColor(42, 130, 218));
-    palette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    palette.setColor(QPalette::HighlightedText, Qt::black);
+    // Load and apply stylesheet
+    QFile styleFile(":/styles.qss");
+    if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+        QString style = QLatin1String(styleFile.readAll());
+        qApp->setStyleSheet(style);
+        styleFile.close();
+    }
     
-    qApp->setPalette(palette);
+    // Set window icon
+    setWindowIcon(QIcon(":/icons/app.ico"));
 }
 
 QColor MainWindow::getExpiryColor(int daysUntilExpiry) const
@@ -387,7 +386,9 @@ void MainWindow::saveProducts()
     if (file.open(QIODevice::WriteOnly)) {
         file.write(document.toJson());
         file.close();
+        Logger::instance().log(Logger::INFO, QString("%1 ürün başarıyla kaydedildi.").arg(products.size()));
     } else {
+        Logger::instance().log(Logger::ERROR, "Ürünler kaydedilirken hata oluştu.");
         QMessageBox::warning(this, "Hata", "Ürünler kaydedilirken bir hata oluştu.");
     }
 }
@@ -396,7 +397,8 @@ void MainWindow::loadProducts()
 {
     QFile file(getDataFilePath());
     if (!file.exists()) {
-        return; // İlk çalıştırma, dosya henüz yok
+        Logger::instance().log(Logger::INFO, "İlk çalıştırma: Ürün dosyası henüz oluşturulmamış.");
+        return;
     }
 
     if (file.open(QIODevice::ReadOnly)) {
@@ -412,9 +414,11 @@ void MainWindow::loadProducts()
                     products.emplace_back(value.toObject());
                 }
             }
+            Logger::instance().log(Logger::INFO, QString("%1 ürün başarıyla yüklendi.").arg(products.size()));
             updateTable();
         }
     } else {
+        Logger::instance().log(Logger::ERROR, "Ürünler yüklenirken hata oluştu.");
         QMessageBox::warning(this, "Hata", "Ürünler yüklenirken bir hata oluştu.");
     }
 }
@@ -425,12 +429,18 @@ void MainWindow::addProduct()
     QString brand = brandEdit->text().trimmed();
     
     if (barcode.isEmpty()) {
+        Logger::instance().log(Logger::WARNING, "Boş barkod ile ürün ekleme denemesi.");
         QMessageBox::warning(this, "Hata", "Lütfen bir barkod numarası girin.");
         return;
     }
 
     QDate expiryDate = expiryDateEdit->date();
     products.emplace_back(barcode, brand, expiryDate);
+    
+    Logger::instance().log(Logger::INFO, QString("Yeni ürün eklendi: Barkod=%1, Marka=%2, SKT=%3")
+        .arg(barcode)
+        .arg(brand)
+        .arg(expiryDate.toString("dd.MM.yyyy")));
     
     updateTable();
     saveProducts();
@@ -447,13 +457,27 @@ void MainWindow::editSelectedProduct()
         EditDialog dialog(products[row].getBarcode(), products[row].getBrand(), 
                         products[row].getExpiryDate(), this);
         if (dialog.exec() == QDialog::Accepted) {
+            QString oldBarcode = products[row].getBarcode();
+            QString oldBrand = products[row].getBrand();
+            QDate oldDate = products[row].getExpiryDate();
+            
             products[row].setBarcode(dialog.getBarcode());
             products[row].setBrand(dialog.getBrand());
             products[row].setExpiryDate(dialog.getExpiryDate());
+            
+            Logger::instance().log(Logger::INFO, QString("Ürün düzenlendi: Barkod: %1->%2, Marka: %3->%4, SKT: %5->%6")
+                .arg(oldBarcode)
+                .arg(dialog.getBarcode())
+                .arg(oldBrand)
+                .arg(dialog.getBrand())
+                .arg(oldDate.toString("dd.MM.yyyy"))
+                .arg(dialog.getExpiryDate().toString("dd.MM.yyyy")));
+            
             updateTable();
             saveProducts();
         }
     } else {
+        Logger::instance().log(Logger::WARNING, "Ürün seçilmeden düzenleme denemesi.");
         QMessageBox::warning(this, "Hata", "Lütfen düzenlenecek bir ürün seçin.");
     }
 }
@@ -462,21 +486,33 @@ void MainWindow::deleteSelectedProduct()
 {
     int row = productTable->currentRow();
     if (row >= 0 && row < products.size()) {
+        QString barcode = products[row].getBarcode();
+        QString brand = products[row].getBrand();
+        QDate expiryDate = products[row].getExpiryDate();
+        
         products.erase(products.begin() + row);
+        
+        Logger::instance().log(Logger::INFO, QString("Ürün silindi: Barkod=%1, Marka=%2, SKT=%3")
+            .arg(barcode)
+            .arg(brand)
+            .arg(expiryDate.toString("dd.MM.yyyy")));
+        
         updateTable();
-        saveProducts(); // Ürün silindiğinde kaydet
+        saveProducts();
     }
 }
 
 void MainWindow::showBulkEditDialog()
 {
     if (products.empty()) {
+        Logger::instance().log(Logger::WARNING, "Boş ürün listesi ile toplu düzenleme denemesi.");
         QMessageBox::warning(this, "Uyarı", "Düzenlenecek ürün bulunmamaktadır.");
         return;
     }
 
     BulkEditDialog dialog(products, this);
     if (dialog.exec() == QDialog::Accepted) {
+        Logger::instance().log(Logger::INFO, "Toplu düzenleme yapıldı.");
         updateTable();
         saveProducts();
     }
@@ -485,6 +521,7 @@ void MainWindow::showBulkEditDialog()
 void MainWindow::showBulkDeleteDialog()
 {
     if (products.empty()) {
+        Logger::instance().log(Logger::WARNING, "Boş ürün listesi ile toplu silme denemesi.");
         QMessageBox::warning(this, "Uyarı", "Silinecek ürün bulunmamaktadır.");
         return;
     }
@@ -503,6 +540,8 @@ void MainWindow::showBulkDeleteDialog()
         );
 
         if (reply == QMessageBox::Yes) {
+            Logger::instance().log(Logger::INFO, QString("%1 ürün toplu olarak silindi.").arg(selectedIndexes.size()));
+            
             // Sondan başa doğru silme işlemi yapılmalı
             for (auto it = selectedIndexes.rbegin(); it != selectedIndexes.rend(); ++it) {
                 products.erase(products.begin() + *it);
