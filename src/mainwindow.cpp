@@ -22,11 +22,11 @@ EditDialog::EditDialog(const QString &barcode, const QString &name, const QStrin
     QLabel *barcodeLabel = new QLabel("Barkod:", this);
     barcodeEdit = new QLineEdit(barcode, this);
     
-    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
-    nameEdit = new QLineEdit(name, this);
-    
     QLabel *brandLabel = new QLabel("Marka:", this);
     brandEdit = new QLineEdit(brand, this);
+    
+    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
+    nameEdit = new QLineEdit(name, this);
     
     QLabel *expiryLabel = new QLabel("Son Kullanma Tarihi:", this);
     expiryDateEdit = new QDateEdit(expiryDate, this);
@@ -41,10 +41,10 @@ EditDialog::EditDialog(const QString &barcode, const QString &name, const QStrin
     
     layout->addWidget(barcodeLabel);
     layout->addWidget(barcodeEdit);
-    layout->addWidget(nameLabel);
-    layout->addWidget(nameEdit);
     layout->addWidget(brandLabel);
     layout->addWidget(brandEdit);
+    layout->addWidget(nameLabel);
+    layout->addWidget(nameEdit);
     layout->addWidget(expiryLabel);
     layout->addWidget(expiryDateEdit);
     layout->addLayout(buttonLayout);
@@ -63,8 +63,8 @@ BulkEditDialog::BulkEditDialog(std::vector<Product> &products, QWidget *parent)
     
     // Tablo
     productTable = new QTableWidget(this);
-    productTable->setColumnCount(4); // Seçim, Barkod, Marka, Son Kullanma Tarihi
-    productTable->setHorizontalHeaderLabels({"Seç", "Barkod", "Marka", "Son Kullanma Tarihi"});
+    productTable->setColumnCount(4);
+    productTable->setHorizontalHeaderLabels({"Seç", "Barkod", "Marka", "Ürün Adı"});
     productTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     productTable->verticalHeader()->setVisible(false);
     
@@ -77,12 +77,12 @@ BulkEditDialog::BulkEditDialog(std::vector<Product> &products, QWidget *parent)
         
         QTableWidgetItem *barcodeItem = new QTableWidgetItem(products[i].getBarcode());
         QTableWidgetItem *brandItem = new QTableWidgetItem(products[i].getBrand());
-        QTableWidgetItem *dateItem = new QTableWidgetItem(products[i].getExpiryDate().toString("dd.MM.yyyy"));
+        QTableWidgetItem *nameItem = new QTableWidgetItem(products[i].getName());
         
         productTable->setItem(i, 0, checkItem);
         productTable->setItem(i, 1, barcodeItem);
         productTable->setItem(i, 2, brandItem);
-        productTable->setItem(i, 3, dateItem);
+        productTable->setItem(i, 3, nameItem);
     }
     
     // Düzenleme seçenekleri
@@ -182,8 +182,8 @@ BulkDeleteDialog::BulkDeleteDialog(const std::vector<Product> &products, QWidget
     
     // Tablo
     productTable = new QTableWidget(this);
-    productTable->setColumnCount(5); // Seçim, Barkod, Marka, Son Kullanma Tarihi, Kalan Gün
-    productTable->setHorizontalHeaderLabels({"Seç", "Barkod", "Marka", "Son Kullanma Tarihi", "Kalan Gün"});
+    productTable->setColumnCount(6);
+    productTable->setHorizontalHeaderLabels({"Seç", "Barkod", "Marka", "Ürün Adı", "Son Kullanma Tarihi", "Kalan Gün"});
     productTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     productTable->verticalHeader()->setVisible(false);
     
@@ -196,14 +196,16 @@ BulkDeleteDialog::BulkDeleteDialog(const std::vector<Product> &products, QWidget
         
         QTableWidgetItem *barcodeItem = new QTableWidgetItem(products[i].getBarcode());
         QTableWidgetItem *brandItem = new QTableWidgetItem(products[i].getBrand());
+        QTableWidgetItem *nameItem = new QTableWidgetItem(products[i].getName());
         QTableWidgetItem *dateItem = new QTableWidgetItem(products[i].getExpiryDate().toString("dd.MM.yyyy"));
         QTableWidgetItem *daysItem = new QTableWidgetItem(QString::number(products[i].getDaysUntilExpiry()));
         
         productTable->setItem(i, 0, checkItem);
         productTable->setItem(i, 1, barcodeItem);
         productTable->setItem(i, 2, brandItem);
-        productTable->setItem(i, 3, dateItem);
-        productTable->setItem(i, 4, daysItem);
+        productTable->setItem(i, 3, nameItem);
+        productTable->setItem(i, 4, dateItem);
+        productTable->setItem(i, 5, daysItem);
     }
     
     // Butonlar
@@ -337,11 +339,11 @@ void MainWindow::setupUI()
     QLabel *barcodeLabel = new QLabel("Barkod:", this);
     barcodeEdit = new QLineEdit(this);
     
-    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
-    nameEdit = new QLineEdit(this);
-    
     QLabel *brandLabel = new QLabel("Marka:", this);
     brandEdit = new QLineEdit(this);
+    
+    QLabel *nameLabel = new QLabel("Ürün Adı:", this);
+    nameEdit = new QLineEdit(this);
     
     QLabel *expiryLabel = new QLabel("Son Kullanma Tarihi:", this);
     expiryDateEdit = new QDateEdit(this);
@@ -352,10 +354,10 @@ void MainWindow::setupUI()
     
     inputLayout->addWidget(barcodeLabel, 0, 0);
     inputLayout->addWidget(barcodeEdit, 0, 1);
-    inputLayout->addWidget(nameLabel, 0, 2);
-    inputLayout->addWidget(nameEdit, 0, 3);
-    inputLayout->addWidget(brandLabel, 1, 0);
-    inputLayout->addWidget(brandEdit, 1, 1);
+    inputLayout->addWidget(brandLabel, 0, 2);
+    inputLayout->addWidget(brandEdit, 0, 3);
+    inputLayout->addWidget(nameLabel, 1, 0);
+    inputLayout->addWidget(nameEdit, 1, 1);
     inputLayout->addWidget(expiryLabel, 1, 2);
     inputLayout->addWidget(expiryDateEdit, 1, 3);
     inputLayout->addWidget(addButton, 2, 3);
@@ -363,7 +365,7 @@ void MainWindow::setupUI()
     // Table
     productTable = new QTableWidget(this);
     productTable->setColumnCount(5);
-    productTable->setHorizontalHeaderLabels({"Barkod", "Ürün Adı", "Marka", "Son Kullanma Tarihi", "Kalan Gün"});
+    productTable->setHorizontalHeaderLabels({"Barkod", "Marka", "Ürün Adı", "Son Kullanma Tarihi", "Kalan Gün"});
     productTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     productTable->setSelectionMode(QAbstractItemView::SingleSelection);
     productTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -376,16 +378,18 @@ void MainWindow::setupUI()
     horizontalHeader->setSectionsMovable(false);
     
     // Minimum sütun genişliklerini ayarla
-    productTable->setColumnWidth(0, 120); // Barkod
-    productTable->setColumnWidth(1, 150); // Ürün Adı
-    productTable->setColumnWidth(2, 120); // Marka
-    productTable->setColumnWidth(3, 150); // Son Kullanma Tarihi
-    productTable->setColumnWidth(4, 100); // Kalan Gün
+    productTable->setColumnWidth(0, 180); // Barkod
+    productTable->setColumnWidth(1, 280); // Marka
+    productTable->setColumnWidth(2, 330); // Ürün Adı
+    productTable->setColumnWidth(3, 250); // Son Kullanma Tarihi
+    productTable->setColumnWidth(4, 140); // Kalan Gün
     
     // Sıralama özelliğini aktif et
     productTable->setSortingEnabled(true);
     horizontalHeader->setSectionsClickable(true);
     horizontalHeader->setSortIndicatorShown(true);
+    horizontalHeader->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    horizontalHeader->setStyleSheet("QHeaderView::section { padding-left: 4px; }");
     
     // Seçim davranışını özelleştir
     connect(productTable, &QTableWidget::itemClicked, this, [this](QTableWidgetItem *item) {
@@ -710,8 +714,8 @@ void MainWindow::updateTable()
         }
         
         productTable->setItem(i, 0, barcodeItem);
-        productTable->setItem(i, 1, nameItem);
-        productTable->setItem(i, 2, brandItem);
+        productTable->setItem(i, 1, brandItem);
+        productTable->setItem(i, 2, nameItem);
         productTable->setItem(i, 3, dateItem);
         productTable->setItem(i, 4, daysItem);
     }
